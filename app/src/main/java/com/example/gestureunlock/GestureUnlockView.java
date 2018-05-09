@@ -5,8 +5,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.os.Handler;
-import android.os.Message;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -31,8 +29,8 @@ public class GestureUnlockView extends View {
     private int mWidth;//the width of screen,valued in onMeasure
     private int mHeight;//the height of screen,valued in onMeasure
 
-    private int mRootX;//root position of the line which can move
-    private int mRootY;//root position of the line which can move
+    private int mLastCircleX;//上一次circle中心点的X
+    private int mLastCircleY;//上一次circle中心点的Y
 
     private ArrayList<Circle> mAllCircleList = new ArrayList<>();//store the circles on screen
     private ArrayList<Circle> mSelectedCircleList = new ArrayList<>();//store the selected circles
@@ -55,22 +53,11 @@ public class GestureUnlockView extends View {
     private int mSelectedColor = Color.parseColor("#508CEE");//default color of selected state
     private int mErrorColor = Color.parseColor("#FF3153");//default color of error state
 
-    private boolean isShowError;
+    //手指抬起后，会继续显示ui，持续一段时间
+    private boolean isActionUpProcessing = false;
     //是否已经初始化circles
     private boolean mHasInitCircles;
-    private OnUnlockListener listener;//the listener of unlock
-    private CreateGestureListener createListener;//the listener of creating gesture
-
-    /**
-     * used for refresh the canvas after MotionEvent.ACTION_UP
-     */
-    private Handler handler = new Handler(new Handler.Callback() {
-        @Override public boolean handleMessage(Message msg) {
-            resetAll();
-            invalidate();
-            return true;
-        }
-    });
+    private GestureListener mGestureListener;//the listener of gesture
 
     public GestureUnlockView(Context context) {
         this(context, null);
@@ -138,6 +125,13 @@ public class GestureUnlockView extends View {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         mWidth = getMeasuredWidth();
         mHeight = getMeasuredHeight();
+        //宽高相等，取较小值
+        if (mWidth > mHeight) {
+            mWidth = mHeight;
+        } else {
+            mHeight = mWidth;
+        }
+        setMeasuredDimension(mWidth, mHeight);
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -154,7 +148,10 @@ public class GestureUnlockView extends View {
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
-        if (isShowError) return true;
+        //如果还在显示上一次绘制的界面，则忽略
+        if (isActionUpProcessing) {
+            return true;
+        }
         int curX = (int) event.getX();
         int curY = (int) event.getY();
         Circle circle = getTouchCircle(curX, curY);
@@ -163,36 +160,30 @@ public class GestureUnlockView extends View {
                 //重置数据
                 this.resetAll();
                 if (circle != null) {
-                    mRootX = circle.getX();
-                    mRootY = circle.getY();
                     addSelectedCircle(circle);
-                    mTempPath.moveTo(mRootX, mRootY);
+                    mTempPath.moveTo(mLastCircleX, mLastCircleY);
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
-                if(!mSelectedCircleList.isEmpty()){
+                if (!mSelectedCircleList.isEmpty()) {
                     mPath.reset();
                     mPath.addPath(mTempPath);
-                    mPath.moveTo(mRootX, mRootY);
+                    mPath.moveTo(mLastCircleX, mLastCircleY);
                     mPath.lineTo(curX, curY);
                     if (circle != null && !(circle.getState() == CIRCLE_SELECTED)) {
                         addSelectedCircle(circle);
-                        mRootX = circle.getX();
-                        mRootY = circle.getY();
-                        mTempPath.lineTo(mRootX, mRootY);
+                        mTempPath.lineTo(mLastCircleX, mLastCircleY);
                     }
-                }else{
+                } else {
                     //如果还没有选中circle
                     if (circle != null) {
-                        mRootX = circle.getX();
-                        mRootY = circle.getY();
                         addSelectedCircle(circle);
-                        mTempPath.moveTo(mRootX, mRootY);
+                        mTempPath.moveTo(mLastCircleX, mLastCircleY);
                     }
                 }
                 break;
             case MotionEvent.ACTION_UP:
-                if (mSelectedCircleList.size() > 0) {
+                if (!mSelectedCircleList.isEmpty()) {
                     mPath.reset();
                     mPath.addPath(mTempPath);
                     StringBuilder sb = new StringBuilder();
@@ -200,33 +191,27 @@ public class GestureUnlockView extends View {
                         sb.append(tempCircle.getPosition());
                     }
 
-                    switch (mMode) {
-                        case CREATE:
-                            if (createListener != null) {
-                                createListener.onGestureCreated(sb.toString());
+                    //解锁图案是否正确由外部决定
+                    if (mGestureListener != null) {
+                        boolean isSuccess =
+                            mGestureListener.onGestureFinish(mMode, sb.toString());
+                        //如果验证不成功
+                        if (!isSuccess) {
+                            mPathPaint.setColor(mErrorColor);
+                            for (Circle circle1 : mSelectedCircleList) {
+                                circle1.setState(CIRCLE_ERROR);
                             }
-                            break;
-                        case CHECK:
-                            if (listener != null) {
-                                if (listener.isUnlockSuccess(sb.toString())) {
-                                    listener.onSuccess();
-                                } else {
-                                    listener.onFailure();
-                                    for (Circle circle1 : mSelectedCircleList) {
-                                        circle1.setState(CIRCLE_ERROR);
-                                    }
-                                    mPathPaint.setColor(mErrorColor);
-                                }
-                            }
-                            break;
+                        }
                     }
 
-                    isShowError = true;
-                    handler.postDelayed(new Runnable() {
+                    //松手后，延迟一秒清空画面
+                    this.postDelayed(new Runnable() {
                         @Override public void run() {
-                            handler.sendEmptyMessage(0);
+                            resetAll();
+                            invalidate();
                         }
                     }, 1000);
+                    isActionUpProcessing = true;
                 }
                 break;
         }
@@ -255,7 +240,7 @@ public class GestureUnlockView extends View {
      * reset all states
      */
     private void resetAll() {
-        isShowError = false;
+        isActionUpProcessing = false;
         mPath.reset();
         mTempPath.reset();
         mSelectedCircleList.clear();
@@ -327,37 +312,25 @@ public class GestureUnlockView extends View {
         if (!hasAdd) {
             //更改状态为已选中
             circle.setState(CIRCLE_SELECTED);
+            //记录上一次的circle的中心X,Y
+            mLastCircleX = circle.getX();
+            mLastCircleY = circle.getY();
             mSelectedCircleList.add(circle);
         }
     }
 
-    /**
-     * Create Mode Listener
-     */
-    interface CreateGestureListener {
-        void onGestureCreated(String result);
-    }
-
-    public void setGestureListener(CreateGestureListener listener) {
-        this.createListener = listener;
-    }
-
-    /**
-     * Check Mode Listener
-     */
-    interface OnUnlockListener {
-        boolean isUnlockSuccess(String result);
-
-        void onSuccess();
-
-        void onFailure();
-    }
-
-    public void setOnUnlockListener(OnUnlockListener listener) {
-        this.listener = listener;
-    }
-
     public void setMode(UnlockMode mode) {
         this.mMode = mode;
+    }
+
+    /**
+     * Gesture Listener
+     */
+    interface GestureListener {
+        boolean onGestureFinish(UnlockMode mode, String result);
+    }
+
+    public void setGestureListener(GestureListener listener) {
+        this.mGestureListener = listener;
     }
 }
