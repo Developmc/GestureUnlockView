@@ -73,10 +73,15 @@ public class GestureUnlockView extends View {
     }
 
     private void initView(Context context) {
-        mBigCircleStrokeWidth = dip2px(context, mBigCircleStrokeWidth);
-        mNormalR = dip2px(context, mNormalR);
-        mBigR = dip2px(context, mBigR);
-        mPathWidth = dip2px(context, mPathWidth);
+        //初始化颜色
+        mNormalColor = Color.parseColor("#D5DBE8");
+        mSelectedColor = Color.parseColor("#508CEE");
+        mErrorColor = Color.parseColor("#FF3153");
+
+        mBigCircleStrokeWidth = dp2px(context, mBigCircleStrokeWidth);
+        mNormalR = dp2px(context, mNormalR);
+        mBigR = dp2px(context, mBigR);
+        mPathWidth = dp2px(context, mPathWidth);
         //初始化画笔
         mPathPaint = new Paint();
         mPathPaint.setColor(mSelectedColor);
@@ -193,8 +198,7 @@ public class GestureUnlockView extends View {
 
                     //解锁图案是否正确由外部决定
                     if (mGestureListener != null) {
-                        boolean isSuccess =
-                            mGestureListener.onGestureFinish(mMode, sb.toString());
+                        boolean isSuccess = mGestureListener.onGestureFinish(mMode, sb.toString());
                         //如果验证不成功
                         if (!isSuccess) {
                             mPathPaint.setColor(mErrorColor);
@@ -247,6 +251,8 @@ public class GestureUnlockView extends View {
         for (Circle circle : mAllCircleList) {
             circle.setState(CIRCLE_NORMAL);
         }
+        //重置画笔颜色
+        mNormalPaint.setColor(mNormalColor);
         mPathPaint.setColor(mSelectedColor);
         mSelectedPaint.setColor(mSelectedColor);
         mSmallSelectedPaint.setColor(mSelectedColor);
@@ -275,7 +281,7 @@ public class GestureUnlockView extends View {
      * @param context Context
      * @param dipValue value of dp
      */
-    public static int dip2px(Context context, float dipValue) {
+    public static int dp2px(Context context, float dipValue) {
         final float scale = context.getResources().getDisplayMetrics().density;
         return (int) (dipValue * scale + 0.5f);
     }
