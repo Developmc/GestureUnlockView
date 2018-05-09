@@ -45,7 +45,7 @@ public class GestureUnlockView extends View {
     private Path mPath;
     private Path mTempPath;
     private int mPathWidth = 3;//width of the paint of path
-    private int mNormalR = 16;//radius of small circles;
+    private int mSmallR = 16;//radius of small circles;
     private int mBigR = 30;//radius of big circles;
     private int mBigCircleStrokeWidth = 2;//width of big circles;
 
@@ -79,7 +79,7 @@ public class GestureUnlockView extends View {
         mErrorColor = Color.parseColor("#FF3153");
 
         mBigCircleStrokeWidth = dp2px(context, mBigCircleStrokeWidth);
-        mNormalR = dp2px(context, mNormalR);
+        mSmallR = dp2px(context, mSmallR);
         mBigR = dp2px(context, mBigR);
         mPathWidth = dp2px(context, mPathWidth);
         //初始化画笔
@@ -95,6 +95,8 @@ public class GestureUnlockView extends View {
         mNormalPaint = new Paint();
         mNormalPaint.setAntiAlias(true);
         mNormalPaint.setDither(true);
+        mNormalPaint.setStyle(Paint.Style.STROKE);
+        mNormalPaint.setStrokeWidth(mBigCircleStrokeWidth);
         mNormalPaint.setColor(mNormalColor);
         //选中状态大圆画笔
         mSelectedPaint = new Paint();
@@ -264,15 +266,15 @@ public class GestureUnlockView extends View {
     private void drawCircles(Circle circle, Canvas canvas) {
         switch (circle.getState()) {
             case CIRCLE_NORMAL:
-                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mNormalPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mBigR, mNormalPaint);
                 break;
             case CIRCLE_SELECTED:
                 canvas.drawCircle(circle.getX(), circle.getY(), mBigR, mSelectedPaint);
-                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mSmallSelectedPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mSmallR, mSmallSelectedPaint);
                 break;
             case CIRCLE_ERROR:
                 canvas.drawCircle(circle.getX(), circle.getY(), mBigR, mErrorPaint);
-                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mSmallErrorPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mSmallR, mSmallErrorPaint);
                 break;
         }
     }
