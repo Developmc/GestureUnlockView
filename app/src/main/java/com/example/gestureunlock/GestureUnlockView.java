@@ -37,26 +37,27 @@ public class GestureUnlockView extends View {
     private ArrayList<Circle> mAllCircleList = new ArrayList<>();//store the circles on screen
     private ArrayList<Circle> mSelectedCircleList = new ArrayList<>();//store the selected circles
 
-    private Paint cirNorPaint;//paint of normal state circles
-    private Paint cirSelPaint;//paint of selected state circles
-    private Paint smallCirSelPaint;//paint of selected state small circles
-    private Paint cirErrPaint;//paint of error state circles
-    private Paint smallcirErrPaint;//paint of error state small circles
-    private Paint pathPaint;//paint of the lines
-    private Path mPath;
-    private Path tempPath;
-    private int pathWidth = 3;//width of the paint of path
-    private int normalR = 15;//radius of small circles;
-    private int selectR = 30;//radius of big circles;
-    private int strokeWidth = 2;//width of big circles;
-    private int normalColor = Color.parseColor("#D5DBE8");//defalt color of normal state
-    private int selectColor = Color.parseColor("#508CEE");//defalt color of selected state
-    private int errorColor = Color.parseColor("#FF3153");//defalt color of error state
+    private Paint mNormalPaint;//paint of normal state circles
+    private Paint mSelectedPaint;//paint of selected state circles
+    private Paint mSmallSelectedPaint;//paint of selected state small circles
+    private Paint mErrorPaint;//paint of error state circles
+    private Paint mSmallErrorPaint;//paint of error state small circles
+    private Paint mPathPaint;//paint of the lines
 
-    private boolean isUnlocking;
+    private Path mPath;
+    private Path mTempPath;
+    private int mPathWidth = 3;//width of the paint of path
+    private int mNormalR = 16;//radius of small circles;
+    private int mBigR = 30;//radius of big circles;
+    private int mBigCircleStrokeWidth = 2;//width of big circles;
+
+    private int mNormalColor = Color.parseColor("#D5DBE8");//default color of normal state
+    private int mSelectedColor = Color.parseColor("#508CEE");//default color of selected state
+    private int mErrorColor = Color.parseColor("#FF3153");//default color of error state
+
     private boolean isShowError;
-    private boolean hasNewCircles;
-    private ArrayList<Integer> passList = new ArrayList<>();
+    //是否已经初始化circles
+    private boolean mHasInitCircles;
     private OnUnlockListener listener;//the listener of unlock
     private CreateGestureListener createListener;//the listener of creating gesture
 
@@ -85,73 +86,118 @@ public class GestureUnlockView extends View {
     }
 
     private void initView(Context context) {
-        strokeWidth = dip2px(context, strokeWidth);
-        normalR = dip2px(context, normalR);
-        selectR = dip2px(context, selectR);
-        pathWidth = dip2px(context, pathWidth);
+        mBigCircleStrokeWidth = dip2px(context, mBigCircleStrokeWidth);
+        mNormalR = dip2px(context, mNormalR);
+        mBigR = dip2px(context, mBigR);
+        mPathWidth = dip2px(context, mPathWidth);
+        //初始化画笔
+        mPathPaint = new Paint();
+        mPathPaint.setColor(mSelectedColor);
+        mPathPaint.setDither(true);
+        mPathPaint.setAntiAlias(true);
+        mPathPaint.setStyle(Paint.Style.STROKE);
+        mPathPaint.setStrokeCap(Paint.Cap.ROUND);
+        mPathPaint.setStrokeJoin(Paint.Join.ROUND);
+        mPathPaint.setStrokeWidth(mPathWidth);
+        //普通状态小圆画笔
+        mNormalPaint = new Paint();
+        mNormalPaint.setAntiAlias(true);
+        mNormalPaint.setDither(true);
+        mNormalPaint.setColor(mNormalColor);
+        //选中状态大圆画笔
+        mSelectedPaint = new Paint();
+        mSelectedPaint.setAntiAlias(true);
+        mSelectedPaint.setDither(true);
+        mSelectedPaint.setStyle(Paint.Style.STROKE);
+        mSelectedPaint.setStrokeWidth(mBigCircleStrokeWidth);
+        mSelectedPaint.setColor(mSelectedColor);
+        //选中状态小圆画笔
+        mSmallSelectedPaint = new Paint();
+        mSmallSelectedPaint.setAntiAlias(true);
+        mSmallSelectedPaint.setDither(true);
+        mSmallSelectedPaint.setColor(mSelectedColor);
+        //出错状态大圆画笔
+        mErrorPaint = new Paint();
+        mErrorPaint.setAntiAlias(true);
+        mErrorPaint.setDither(true);
+        mErrorPaint.setStyle(Paint.Style.STROKE);
+        mErrorPaint.setStrokeWidth(mBigCircleStrokeWidth);
+        mErrorPaint.setColor(mErrorColor);
+        //出错状态小圆画笔
+        mSmallErrorPaint = new Paint();
+        mSmallErrorPaint.setAntiAlias(true);
+        mSmallErrorPaint.setDither(true);
+        mSmallErrorPaint.setColor(mErrorColor);
+
+        //初始化path
+        mPath = new Path();
+        mTempPath = new Path();
     }
 
-    /**
-     * reset all states
-     */
-    private void resetAll() {
-        isShowError = false;
-        isUnlocking = false;
-        mPath.reset();
-        tempPath.reset();
-        mSelectedCircleList.clear();
-        passList.clear();
-        for (Circle circle : mAllCircleList) {
-            circle.setState(CIRCLE_NORMAL);
-        }
-        pathPaint.setColor(selectColor);
-        cirSelPaint.setColor(selectColor);
-        smallCirSelPaint.setColor(selectColor);
-        clearCanvas();
+    @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        mWidth = getMeasuredWidth();
+        mHeight = getMeasuredHeight();
+    }
+
+    @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        //onLayout会多次回调
+        initCircles();
     }
 
     @Override protected void onDraw(Canvas canvas) {
         for (int i = 0; i < mAllCircleList.size(); i++) {
-            drawCircles(mAllCircleList.get(i),canvas);
+            drawCircles(mAllCircleList.get(i), canvas);
         }
-        canvas.drawPath(mPath, pathPaint);
+        canvas.drawPath(mPath, mPathPaint);
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
         if (isShowError) return true;
         int curX = (int) event.getX();
         int curY = (int) event.getY();
-        Circle circle = getOuterCircle(curX, curY);
+        Circle circle = getTouchCircle(curX, curY);
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                //重置数据
                 this.resetAll();
                 if (circle != null) {
                     mRootX = circle.getX();
                     mRootY = circle.getY();
-                    circle.setState(CIRCLE_SELECTED);
-                    mSelectedCircleList.add(circle);
-                    tempPath.moveTo(mRootX, mRootY);
-                    addItem(circle.getPosition() + 1);
-                    isUnlocking = true;
+                    addSelectedCircle(circle);
+                    mTempPath.moveTo(mRootX, mRootY);
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
-                if (isUnlocking) {
+                if(!mSelectedCircleList.isEmpty()){
                     mPath.reset();
-                    mPath.addPath(tempPath);
+                    mPath.addPath(mTempPath);
                     mPath.moveTo(mRootX, mRootY);
                     mPath.lineTo(curX, curY);
-                    handleMove(circle);
+                    if (circle != null && !(circle.getState() == CIRCLE_SELECTED)) {
+                        addSelectedCircle(circle);
+                        mRootX = circle.getX();
+                        mRootY = circle.getY();
+                        mTempPath.lineTo(mRootX, mRootY);
+                    }
+                }else{
+                    //如果还没有选中circle
+                    if (circle != null) {
+                        mRootX = circle.getX();
+                        mRootY = circle.getY();
+                        addSelectedCircle(circle);
+                        mTempPath.moveTo(mRootX, mRootY);
+                    }
                 }
                 break;
             case MotionEvent.ACTION_UP:
-                isUnlocking = false;
                 if (mSelectedCircleList.size() > 0) {
                     mPath.reset();
-                    mPath.addPath(tempPath);
+                    mPath.addPath(mTempPath);
                     StringBuilder sb = new StringBuilder();
-                    for (Integer num : passList) {
-                        sb.append(num);
+                    for (Circle tempCircle : mSelectedCircleList) {
+                        sb.append(tempCircle.getPosition());
                     }
 
                     switch (mMode) {
@@ -169,7 +215,7 @@ public class GestureUnlockView extends View {
                                     for (Circle circle1 : mSelectedCircleList) {
                                         circle1.setState(CIRCLE_ERROR);
                                     }
-                                    pathPaint.setColor(errorColor);
+                                    mPathPaint.setColor(mErrorColor);
                                 }
                             }
                             break;
@@ -188,110 +234,59 @@ public class GestureUnlockView extends View {
         return true;
     }
 
-    private synchronized void handleMove(Circle c) {
-        if (c != null && !(c.getState() == CIRCLE_SELECTED)) {
-            c.setState(CIRCLE_SELECTED);
-            mSelectedCircleList.add(c);
-            mRootX = c.getX();
-            mRootY = c.getY();
-            tempPath.lineTo(mRootX, mRootY);
-            addItem(c.getPosition() + 1);
-        }
-    }
-
-    @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        mWidth = getMeasuredWidth();
-        mHeight = getMeasuredHeight();
-    }
-
-    @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        super.onLayout(changed, left, top, right, bottom);
-        //init all path/paint
-        mPath = new Path();
-        tempPath = new Path();
-        pathPaint = new Paint();
-        pathPaint.setColor(selectColor);
-        pathPaint.setDither(true);
-        pathPaint.setAntiAlias(true);
-        pathPaint.setStyle(Paint.Style.STROKE);
-        pathPaint.setStrokeCap(Paint.Cap.ROUND);
-        pathPaint.setStrokeJoin(Paint.Join.ROUND);
-        pathPaint.setStrokeWidth(pathWidth);
-        //普通状态小圆画笔
-        cirNorPaint = new Paint();
-        cirNorPaint.setAntiAlias(true);
-        cirNorPaint.setDither(true);
-        cirNorPaint.setColor(normalColor);
-        //选中状态大圆画笔
-        cirSelPaint = new Paint();
-        cirSelPaint.setAntiAlias(true);
-        cirSelPaint.setDither(true);
-        cirSelPaint.setStyle(Paint.Style.STROKE);
-        cirSelPaint.setStrokeWidth(strokeWidth);
-        cirSelPaint.setColor(selectColor);
-        //选中状态小圆画笔
-        smallCirSelPaint = new Paint();
-        smallCirSelPaint.setAntiAlias(true);
-        smallCirSelPaint.setDither(true);
-        smallCirSelPaint.setColor(selectColor);
-        //出错状态大圆画笔
-        cirErrPaint = new Paint();
-        cirErrPaint.setAntiAlias(true);
-        cirErrPaint.setDither(true);
-        cirErrPaint.setStyle(Paint.Style.STROKE);
-        cirErrPaint.setStrokeWidth(strokeWidth);
-        cirErrPaint.setColor(errorColor);
-        //出错状态小圆画笔
-        smallcirErrPaint = new Paint();
-        smallcirErrPaint.setAntiAlias(true);
-        smallcirErrPaint.setDither(true);
-        smallcirErrPaint.setColor(errorColor);
-
-        //init all circles
+    /**
+     * 初始化circles
+     */
+    private void initCircles() {
         int hor = mWidth / 6;
         int ver = mHeight / 6;
-        if (!hasNewCircles) {
+        if (!mHasInitCircles) {
             for (int i = 0; i < 9; i++) {
                 int tempX = (i % 3 + 1) * 2 * hor - hor;
                 int tempY = (i / 3 + 1) * 2 * ver - ver;
-                Circle circle = new Circle(i, tempX, tempY, CIRCLE_NORMAL);
+                Circle circle = new Circle(i + 1, tempX, tempY, CIRCLE_NORMAL);
                 mAllCircleList.add(circle);
             }
         }
-        hasNewCircles = true;
+        mHasInitCircles = true;
+    }
+
+    /**
+     * reset all states
+     */
+    private void resetAll() {
+        isShowError = false;
+        mPath.reset();
+        mTempPath.reset();
+        mSelectedCircleList.clear();
+        for (Circle circle : mAllCircleList) {
+            circle.setState(CIRCLE_NORMAL);
+        }
+        mPathPaint.setColor(mSelectedColor);
+        mSelectedPaint.setColor(mSelectedColor);
+        mSmallSelectedPaint.setColor(mSelectedColor);
     }
 
     /**
      * called in onDraw for drawing all circles
      */
-    private void drawCircles(Circle circle,Canvas canvas) {
+    private void drawCircles(Circle circle, Canvas canvas) {
         switch (circle.getState()) {
             case CIRCLE_NORMAL:
-                canvas.drawCircle(circle.getX(), circle.getY(), normalR, cirNorPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mNormalPaint);
                 break;
             case CIRCLE_SELECTED:
-                canvas.drawCircle(circle.getX(), circle.getY(), selectR, cirSelPaint);
-                canvas.drawCircle(circle.getX(), circle.getY(), normalR, smallCirSelPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mBigR, mSelectedPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mSmallSelectedPaint);
                 break;
             case CIRCLE_ERROR:
-                canvas.drawCircle(circle.getX(), circle.getY(), selectR, cirErrPaint);
-                canvas.drawCircle(circle.getX(), circle.getY(), normalR, smallcirErrPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mBigR, mErrorPaint);
+                canvas.drawCircle(circle.getX(), circle.getY(), mNormalR, mSmallErrorPaint);
                 break;
         }
     }
 
     /**
-     * clear canvas
-     */
-    private void clearCanvas() {
-        mPath.reset();
-        tempPath.reset();
-    }
-
-    /**
-     * J U S T  A  T O O L !
-     *
      * @param context Context
      * @param dipValue value of dp
      */
@@ -301,13 +296,14 @@ public class GestureUnlockView extends View {
     }
 
     /**
-     * check whether the point is in a circle
+     * 检查是否触碰到circles,如果是则返回该circle，否则返回null
      */
-    @Nullable private Circle getOuterCircle(int x, int y) {
+    @Nullable private Circle getTouchCircle(int x, int y) {
         for (int i = 0; i < mAllCircleList.size(); i++) {
             Circle circle = mAllCircleList.get(i);
+            //为增大触摸范围，这里的半径以大圈的半径作为标准
             if ((x - circle.getX()) * (x - circle.getX()) + (y - circle.getY()) * (y
-                - circle.getY()) <= normalR * normalR) {
+                - circle.getY()) <= mBigR * mBigR) {
                 if (circle.getState() != CIRCLE_SELECTED) {
                     return circle;
                 }
@@ -317,23 +313,21 @@ public class GestureUnlockView extends View {
     }
 
     /**
-     * check whether the password list contains the number
+     * 添加已选中的circle
      */
-    private boolean arrContainsInt(int num) {
-        for (Integer value : passList) {
-            if (num == value) {
-                return true;
+    private void addSelectedCircle(Circle circle) {
+        //检查是否已添加
+        boolean hasAdd = false;
+        for (Circle tempCircle : mSelectedCircleList) {
+            if (tempCircle.getPosition() == circle.getPosition()) {
+                hasAdd = true;
             }
         }
-        return false;
-    }
-
-    /**
-     * put the num into password list
-     */
-    private void addItem(Integer num) {
-        if (!arrContainsInt(num)) {
-            passList.add(num);
+        //如果还没有添加，则添加进去
+        if (!hasAdd) {
+            //更改状态为已选中
+            circle.setState(CIRCLE_SELECTED);
+            mSelectedCircleList.add(circle);
         }
     }
 
@@ -363,31 +357,7 @@ public class GestureUnlockView extends View {
         this.listener = listener;
     }
 
-    public void setPathWidth(int pathWidth) {
-        this.pathWidth = pathWidth;
-    }
-
-    public void setNormalR(int normalR) {
-        this.normalR = normalR;
-    }
-
-    public void setSelectR(int selectR) {
-        this.selectR = selectR;
-    }
-
-    public void setNormalColor(int normalColor) {
-        this.normalColor = normalColor;
-    }
-
-    public void setSelectColor(int selectColor) {
-        this.selectColor = selectColor;
-    }
-
-    public void setErrorColor(int errorColor) {
-        this.errorColor = errorColor;
-    }
-
-    public void setmMode(UnlockMode mMode) {
-        this.mMode = mMode;
+    public void setMode(UnlockMode mode) {
+        this.mMode = mode;
     }
 }

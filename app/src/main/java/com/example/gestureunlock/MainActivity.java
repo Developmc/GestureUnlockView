@@ -21,13 +21,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         final GestureUnlockView mUnlockView = (GestureUnlockView) findViewById(R.id.unlock);
-        mUnlockView.setmMode(UnlockMode.CREATE);
+        mUnlockView.setMode(UnlockMode.CREATE);
         mUnlockView.setGestureListener(new GestureUnlockView.CreateGestureListener() {
             @Override public void onGestureCreated(String result) {
                 pwd = result;
                 Toast.makeText(MainActivity.this, "Set Gesture Succeeded!", Toast.LENGTH_SHORT)
                     .show();
-                mUnlockView.setmMode(UnlockMode.CHECK);
+                mUnlockView.setMode(UnlockMode.CHECK);
             }
         });
         mUnlockView.setOnUnlockListener(new GestureUnlockView.OnUnlockListener() {
